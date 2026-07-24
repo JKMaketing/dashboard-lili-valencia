@@ -92,7 +92,7 @@ function rowsToObjects(rows){
       precioVenta:parseMoney(r[6]),metodoPago:(r[7]||'Otro').trim()||'Otro',canal:(r[8]||'Otro').trim()||'Otro',
       tipo:(r[9]||'Otro').trim()||'Otro',proveedor:(r[10]||'').trim(),referencia:(r[11]||'').trim()||'—',
       color:(r[12]||'').trim(),estado:(r[17]||'').trim()||'Sin estado',asesor:(r[18]||'').trim()||'Sin asesor',
-      total:parseMoney(r[19])||parseMoney(r[6]),valida:(r[22]||'').trim()==='1',
+      total:parseMoney(r[6]),valida:(r[22]||'').trim()==='1',
       year:parseInt(iso.slice(0,4),10),month:parseInt(iso.slice(5,7),10)});
   }
   return out;
