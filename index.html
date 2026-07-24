@@ -11,7 +11,7 @@
   --color-text:#e8e8f0;--color-accent:#7c6af7;--color-accent-300:#a89bf9;--color-accent-700:#4b3dc4;
   --color-neutral-200:#d0d0e0;--color-neutral-300:#9090a8;--color-neutral-400:#686880;
   --color-neutral-500:#505068;--color-neutral-700:#2a2a40;--color-neutral-800:#1e1e30;
-  --font-body:'Inter',system-ui,sans-serif;--font-heading:'Inter',system-ui,sans-serif;
+  --font-body:'Inter',system-ui,sans-serif;
   --space-2:8px;--space-3:12px;--space-4:16px;--space-5:20px;--space-6:24px;--space-7:28px;--space-8:32px;
   --radius-sm:6px;--radius-md:10px;
 }
@@ -30,11 +30,12 @@ a{color:var(--color-accent-300);}a:hover{color:var(--color-accent);}
 .btn-secondary{background:var(--color-surface-2);color:var(--color-text);border:1px solid var(--color-neutral-700)}.btn-secondary:hover{background:var(--color-neutral-800)}
 .btn-ghost{background:transparent;color:var(--color-neutral-300)}.btn-ghost:hover{background:var(--color-surface-2);color:var(--color-text)}
 .btn-icon{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:var(--radius-sm);border:none;cursor:pointer;background:transparent;color:var(--color-neutral-300)}.btn-icon:hover{background:var(--color-surface-2)}
-.seg{background:var(--color-neutral-800);border-radius:var(--radius-sm);padding:2px;display:inline-flex}
+.seg{background:var(--color-neutral-800);border-radius:var(--radius-sm);padding:2px;display:inline-flex;flex-wrap:wrap}
 .seg-opt{padding:5px 12px;border-radius:4px;font-size:13px;color:var(--color-neutral-300);cursor:pointer;transition:all .15s}
 .seg-opt.active{background:var(--color-surface);color:var(--color-text);box-shadow:0 1px 3px rgba(0,0,0,.3)}
 .input{background:var(--color-neutral-800);border:1px solid var(--color-neutral-700);border-radius:var(--radius-sm);padding:7px 10px;color:var(--color-text);font-family:var(--font-body);font-size:13px;outline:none}
 .input:focus{border-color:var(--color-accent)}
+input[type="date"].input::-webkit-calendar-picker-indicator{filter:invert(.6)}
 .table{border-collapse:collapse;width:100%}
 .table th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--color-neutral-400);padding:8px 12px;border-bottom:1px solid var(--color-neutral-800)}
 .table td{padding:9px 12px;font-size:13px;border-bottom:1px solid var(--color-neutral-800);color:var(--color-text)}
@@ -52,12 +53,14 @@ a{color:var(--color-accent-300);}a:hover{color:var(--color-accent);}
 <script>
 const SHEET_ID='1DQO1nI8ucA8eiEGPKtxCk0PfTBJC3PMWWC8Zu5AWqqk';
 const SHEET_TAB='BASE_VENTAS';
+const SHEET_TAB_MKTG='MARKETING_DIARIO';
 const LS_ROWS='lv_dashboard_rows_v1';
+const LS_DAILY='lv_dashboard_daily_v1';
 const LS_ADS='lv_dashboard_ads_v1';
 const LS_META='lv_dashboard_meta_v1';
 
 function parseMoney(s){if(!s)return 0;const c=String(s).replace(/[^0-9]/g,'');return c?parseInt(c,10):0;}
-function fmtMoney(n){'';return'$'+new Intl.NumberFormat('es-CO').format(Math.round(n||0));}
+function fmtMoney(n){return'$'+new Intl.NumberFormat('es-CO').format(Math.round(n||0));}
 function fmtDate(iso){const d=new Date(iso+'T00:00:00');return d.toLocaleDateString('es-CO',{day:'2-digit',month:'short',year:'numeric'});}
 function dateKey(d){return d.toISOString().slice(0,10);}
 function addDays(d,n){const r=new Date(d);r.setDate(r.getDate()+n);return r;}
@@ -74,6 +77,7 @@ function parseCsv(text){
   if(field.length||row.length){row.push(field);rows.push(row);}
   return rows.filter(r=>r.some(v=>v!==''));
 }
+
 function toISODate(row){
   const texto=(row[25]||'').trim();
   if(/^\d{4}-\d{2}-\d{2}$/.test(texto))return texto;
@@ -83,13 +87,14 @@ function toISODate(row){
   if(m)return`${m[3]}-${String(m[2]).padStart(2,'0')}-${String(m[1]).padStart(2,'0')}`;
   return null;
 }
+
 function rowsToObjects(rows){
   const out=[];
   for(let i=1;i<rows.length;i++){
     const r=rows[i];if(!r||r.length<5)continue;
     const iso=toISODate(r);if(!iso)continue;
     out.push({fecha:iso,cliente:(r[1]||'').trim(),ciudad:(r[2]||'').trim(),talla:(r[5]||'').trim(),
-      precioVenta:parseMoney(r[6]),metodoPago:(r[7]||'Otro').trim()||'Otro',canal:(r[8]||'Otro').trim()||'Otro',
+      metodoPago:(r[7]||'Otro').trim()||'Otro',canal:(r[8]||'Otro').trim()||'Otro',
       tipo:(r[9]||'Otro').trim()||'Otro',proveedor:(r[10]||'').trim(),referencia:(r[11]||'').trim()||'—',
       color:(r[12]||'').trim(),estado:(r[17]||'').trim()||'Sin estado',asesor:(r[18]||'').trim()||'Sin asesor',
       total:parseMoney(r[6]),valida:(r[22]||'').trim()==='1',
@@ -98,9 +103,29 @@ function rowsToObjects(rows){
   return out;
 }
 
-// ─── App State ───────────────────────────────────────────────────────────────
-let STATE={rows:[],loading:true,error:false,lastUpdated:null,period:'month',anchor:new Date(),
-  search:'',showImport:false,importText:'',adsByMonth:{},adsDraft:'',visibleCount:12};
+// Parse MARKETING_DIARIO: col0=Fecha, col6=Valor total de venta
+function parseDailyRows(rows){
+  const out=[];
+  for(let i=1;i<rows.length;i++){
+    const r=rows[i];if(!r||!r[0])continue;
+    const fecha=(r[0]||'').trim();
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(fecha))continue;
+    const v=parseMoney(r[6]);
+    if(!v&&!fecha)continue;
+    out.push({fecha,valorVenta:v,ventas:parseInt(r[3])||0,contactos:parseInt(r[1])||0,cotizaciones:parseInt(r[2])||0});
+  }
+  return out;
+}
+
+// ─── App State ────────────────────────────────────────────────────────────────
+let STATE={
+  rows:[],dailyRows:[],
+  loading:true,error:false,lastUpdated:null,
+  period:'month',anchor:new Date(),
+  customFrom:'',customTo:'',
+  search:'',showImport:false,importText:'',
+  adsByMonth:{},adsDraft:'',visibleCount:12
+};
 
 function setState(patch){
   const next=typeof patch==='function'?patch(STATE):patch;
@@ -109,57 +134,77 @@ function setState(patch){
 }
 
 // ─── Data fetching ────────────────────────────────────────────────────────────
+async function fetchTab(tabName,parser){
+  const url=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tabName)}`;
+  try{
+    const res=await fetch(url,{cache:'no-store'});
+    if(!res.ok)return null;
+    const text=await res.text();
+    if(!text||text.trim().length<20)return null;
+    const rows=parser(parseCsv(text));
+    return rows.length>0?rows:null;
+  }catch(e){return null;}
+}
+
 async function fetchLive(){
   setState({loading:true});
-  const urls=[
-    `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(SHEET_TAB)}`,
-    `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv`,
-  ];
-  for(const url of urls){
-    try{
-      const res=await fetch(url,{cache:'no-store'});
-      if(!res.ok)continue;
-      const text=await res.text();
-      if(!text||text.trim().length<20)continue;
-      const rows=rowsToObjects(parseCsv(text));
-      if(rows.length>0){
-        const now=new Date().toISOString();
-        setState({rows,loading:false,error:false,lastUpdated:now});
-        try{localStorage.setItem(LS_ROWS,JSON.stringify(rows));localStorage.setItem(LS_META,JSON.stringify({lastUpdated:now}));}catch(e){}
-        return;
-      }
-    }catch(e){}
-  }
-  setState(s=>({loading:false,error:s.rows.length===0}));
+  const[dailyRows,detailRows]=await Promise.all([
+    fetchTab(SHEET_TAB_MKTG,parseDailyRows),
+    fetchTab(SHEET_TAB,rowsToObjects),
+  ]);
+  const now=new Date().toISOString();
+  const update={loading:false,lastUpdated:now};
+  if(dailyRows){update.dailyRows=dailyRows;update.error=false;
+    try{localStorage.setItem(LS_DAILY,JSON.stringify(dailyRows));}catch(e){}}
+  if(detailRows){update.rows=detailRows;
+    try{localStorage.setItem(LS_ROWS,JSON.stringify(detailRows));}catch(e){}}
+  if(!dailyRows&&!detailRows)update.error=STATE.dailyRows.length===0;
+  setState(update);
+  try{localStorage.setItem(LS_META,JSON.stringify({lastUpdated:now}));}catch(e){}
 }
 
 // ─── Range helpers ────────────────────────────────────────────────────────────
-function getRange(period,anchor){
+function getRange(period,anchor,customFrom,customTo){
   const a=new Date(anchor);a.setHours(0,0,0,0);
+  if(period==='custom'){
+    const s=customFrom?new Date(customFrom+'T00:00:00'):new Date(a.getFullYear(),a.getMonth(),1);
+    const e=customTo?addDays(new Date(customTo+'T00:00:00'),1):new Date(a.getFullYear(),a.getMonth()+1,1);
+    return{start:s,end:e};
+  }
   if(period==='day')return{start:a,end:addDays(a,1)};
   if(period==='week'){const s=startOfWeek(a);return{start:s,end:addDays(s,7)};}
-  if(period==='month'){return{start:new Date(a.getFullYear(),a.getMonth(),1),end:new Date(a.getFullYear(),a.getMonth()+1,1)};}
+  if(period==='month')return{start:new Date(a.getFullYear(),a.getMonth(),1),end:new Date(a.getFullYear(),a.getMonth()+1,1)};
   return{start:new Date(a.getFullYear(),0,1),end:new Date(a.getFullYear()+1,0,1)};
 }
 function inRange(iso,start,end){const t=new Date(iso+'T00:00:00').getTime();return t>=start.getTime()&&t<end.getTime();}
 
 // ─── Computed values ──────────────────────────────────────────────────────────
 function compute(){
-  const{rows,loading,error,period,anchor,search,adsByMonth,adsDraft,visibleCount,showImport,importText,lastUpdated}=STATE;
-  const{start,end}=getRange(period,anchor);
-  const prevAnchor=new Date(anchor);
-  if(period==='day')prevAnchor.setDate(prevAnchor.getDate()-1);
-  else if(period==='week')prevAnchor.setDate(prevAnchor.getDate()-7);
-  else if(period==='month')prevAnchor.setMonth(prevAnchor.getMonth()-1);
-  else prevAnchor.setFullYear(prevAnchor.getFullYear()-1);
-  const prevRange=getRange(period,prevAnchor);
+  const{rows,dailyRows,loading,error,period,anchor,customFrom,customTo,
+    search,adsByMonth,adsDraft,visibleCount,showImport,importText,lastUpdated}=STATE;
+  const{start,end}=getRange(period,anchor,customFrom,customTo);
 
+  // Previous period (non-custom only)
+  let prevStart=null,prevEnd=null;
+  if(period!=='custom'){
+    const pa=new Date(anchor);
+    if(period==='day')pa.setDate(pa.getDate()-1);
+    else if(period==='week')pa.setDate(pa.getDate()-7);
+    else if(period==='month')pa.setMonth(pa.getMonth()-1);
+    else pa.setFullYear(pa.getFullYear()-1);
+    const pr=getRange(period,pa,customFrom,customTo);
+    prevStart=pr.start;prevEnd=pr.end;
+  }
+
+  // ── Totals from MARKETING_DIARIO ──
+  const dailyInPeriod=dailyRows.filter(r=>inRange(r.fecha,start,end));
+  const total=dailyInPeriod.reduce((s,r)=>s+r.valorVenta,0);
+  const prevDailyInPeriod=prevStart?dailyRows.filter(r=>inRange(r.fecha,prevStart,prevEnd)):[];
+  const prevTotal=prevDailyInPeriod.reduce((s,r)=>s+r.valorVenta,0);
+
+  // ── Order detail from BASE_VENTAS ──
   const inPeriod=rows.filter(r=>inRange(r.fecha,start,end));
   const validInPeriod=inPeriod.filter(r=>r.valida);
-  const prevInPeriod=rows.filter(r=>inRange(r.fecha,prevRange.start,prevRange.end)&&r.valida);
-
-  const total=validInPeriod.reduce((s,r)=>s+r.total,0);
-  const prevTotal=prevInPeriod.reduce((s,r)=>s+r.total,0);
   const orders=validInPeriod.length;
   const pending=inPeriod.length-orders;
   const avgTicket=orders>0?total/orders:0;
@@ -171,19 +216,22 @@ function compute(){
   const topProductsArr=Object.values(productMap).sort((a,b)=>b.units-a.units);
   const topProduct=topProductsArr[0]||{ref:'—',units:0};
 
+  // Projection (non-custom)
   const now=new Date();let elapsedFrac=1;
-  if(now>=start&&now<end)elapsedFrac=(now.getTime()-start.getTime())/(end.getTime()-start.getTime());
-  else if(now<start)elapsedFrac=0.001;
-  const projected=elapsedFrac>0.02?total/elapsedFrac:total;
+  if(period!=='custom'){
+    if(now>=start&&now<end)elapsedFrac=(now.getTime()-start.getTime())/(end.getTime()-start.getTime());
+    else if(now<start)elapsedFrac=0.001;
+  }
+  const projected=period!=='custom'&&elapsedFrac>0.02?total/elapsedFrac:total;
 
+  // Ads spend
   const monthKey=`${anchor.getFullYear()}-${String(anchor.getMonth()+1).padStart(2,'0')}`;
   let adsSpend=0;
   if(period==='year'){for(let m=1;m<=12;m++)adsSpend+=adsByMonth[`${anchor.getFullYear()}-${String(m).padStart(2,'0')}`]||0;}
-  else{
-    adsSpend=adsByMonth[monthKey]||0;
-    if(period!=='month'&&adsSpend){const dim=new Date(anchor.getFullYear(),anchor.getMonth()+1,0).getDate();
-      const dir=Math.round((end-start)/86400000);adsSpend=adsSpend*(dir/dim);}
-  }
+  else{adsSpend=adsByMonth[monthKey]||0;
+    if(period!=='month'&&period!=='custom'&&adsSpend){
+      const dim=new Date(anchor.getFullYear(),anchor.getMonth()+1,0).getDate();
+      const dir=Math.round((end-start)/86400000);adsSpend=adsSpend*(dir/dim);}}
   const roas=adsSpend>0?(total/adsSpend):null;
 
   function groupBy(field,limit){
@@ -194,31 +242,52 @@ function compute(){
     return arr.slice(0,limit||arr.length).map(x=>({label:x.label,value:fmtMoney(x.value),pct:Math.max(4,Math.round((x.value/max)*100))}));
   }
 
-  // trend bars
+  // ── Trend bars from MARKETING_DIARIO ──
   const trendBars=[];
-  if(period==='day'){
-    for(let i=13;i>=0;i--){const d=addDays(new Date(anchor),-i);const k=dateKey(d);
-      const val=rows.filter(r=>r.fecha===k&&r.valida).reduce((s,r)=>s+r.total,0);
-      trendBars.push({val,label:d.toLocaleDateString('es-CO',{day:'2-digit',month:'short'})});}
-  }else if(period==='week'){
-    for(let i=9;i>=0;i--){const s=startOfWeek(addDays(new Date(anchor),-7*i));const e=addDays(s,7);
-      const val=rows.filter(r=>inRange(r.fecha,s,e)&&r.valida).reduce((sum,r)=>sum+r.total,0);
-      trendBars.push({val,label:s.toLocaleDateString('es-CO',{day:'2-digit',month:'short'})});}
-  }else if(period==='month'){
-    for(let i=11;i>=0;i--){const d=new Date(anchor.getFullYear(),anchor.getMonth()-i,1);
-      const s=new Date(d.getFullYear(),d.getMonth(),1);const e=new Date(d.getFullYear(),d.getMonth()+1,1);
-      const val=rows.filter(r=>inRange(r.fecha,s,e)&&r.valida).reduce((sum,r)=>sum+r.total,0);
-      trendBars.push({val,label:d.toLocaleDateString('es-CO',{month:'short',year:'2-digit'})});}
+  const rangeDays=Math.round((end-start)/86400000);
+
+  if(period==='day'||(period==='custom'&&rangeDays<=31)){
+    const barCount=period==='custom'?Math.max(rangeDays,1):14;
+    const barStart=period==='custom'?new Date(start):addDays(new Date(anchor),-(barCount-1));
+    for(let i=0;i<barCount;i++){
+      const d=addDays(barStart,i);const k=dateKey(d);
+      const dr=dailyRows.find(r=>r.fecha===k);
+      trendBars.push({val:dr?dr.valorVenta:0,label:d.toLocaleDateString('es-CO',{day:'2-digit',month:'short'})});
+    }
+  }else if(period==='week'||(period==='custom'&&rangeDays<=91)){
+    if(period==='custom'){
+      let s=startOfWeek(new Date(start));
+      while(s<end){const e2=addDays(s,7);
+        const val=dailyRows.filter(r=>inRange(r.fecha,s,e2)).reduce((sum,r)=>sum+r.valorVenta,0);
+        trendBars.push({val,label:s.toLocaleDateString('es-CO',{day:'2-digit',month:'short'})});s=e2;}
+    }else{
+      for(let i=9;i>=0;i--){const s=startOfWeek(addDays(new Date(anchor),-7*i));const e2=addDays(s,7);
+        const val=dailyRows.filter(r=>inRange(r.fecha,s,e2)).reduce((sum,r)=>sum+r.valorVenta,0);
+        trendBars.push({val,label:s.toLocaleDateString('es-CO',{day:'2-digit',month:'short'})});}
+    }
+  }else if(period==='month'||(period==='custom'&&rangeDays<=730)){
+    if(period==='custom'){
+      let cur=new Date(start.getFullYear(),start.getMonth(),1);
+      while(cur<end){const ne=new Date(cur.getFullYear(),cur.getMonth()+1,1);
+        const val=dailyRows.filter(r=>inRange(r.fecha,cur,ne)).reduce((sum,r)=>sum+r.valorVenta,0);
+        trendBars.push({val,label:cur.toLocaleDateString('es-CO',{month:'short',year:'2-digit'})});cur=ne;}
+    }else{
+      for(let i=11;i>=0;i--){const d=new Date(anchor.getFullYear(),anchor.getMonth()-i,1);
+        const s=new Date(d.getFullYear(),d.getMonth(),1);const e2=new Date(d.getFullYear(),d.getMonth()+1,1);
+        const val=dailyRows.filter(r=>inRange(r.fecha,s,e2)).reduce((sum,r)=>sum+r.valorVenta,0);
+        trendBars.push({val,label:d.toLocaleDateString('es-CO',{month:'short',year:'2-digit'})});}
+    }
   }else{
-    const years=Array.from(new Set(rows.map(r=>r.year))).sort();
-    const yrs=years.length?years:[anchor.getFullYear()];
-    yrs.forEach(y=>{const s=new Date(y,0,1);const e=new Date(y+1,0,1);
-      const val=rows.filter(r=>inRange(r.fecha,s,e)&&r.valida).reduce((sum,r)=>sum+r.total,0);
-      trendBars.push({val,label:String(y)});});
+    const years=Array.from(new Set(dailyRows.map(r=>r.fecha.slice(0,4)))).sort();
+    const yrs=years.length?years:[String(anchor.getFullYear())];
+    yrs.forEach(y=>{const s=new Date(Number(y),0,1);const e2=new Date(Number(y)+1,0,1);
+      const val=dailyRows.filter(r=>inRange(r.fecha,s,e2)).reduce((sum,r)=>sum+r.valorVenta,0);
+      trendBars.push({val,label:y});});
   }
   const maxTrend=Math.max(1,...trendBars.map(b=>b.val));
   const trendBarsOut=trendBars.map(b=>({label:b.label,pct:Math.max(2,Math.round((b.val/maxTrend)*100)),title:fmtMoney(b.val)}));
 
+  // ── Detail table ──
   const searchLower=search.trim().toLowerCase();
   let filteredDetail=validInPeriod;
   if(searchLower)filteredDetail=filteredDetail.filter(r=>
@@ -229,35 +298,41 @@ function compute(){
     fecha:fmtDate(r.fecha),cliente:r.cliente,ciudad:r.ciudad,tipo:r.tipo,canal:r.canal,asesor:r.asesor,
     estado:r.estado,total:fmtMoney(r.total),tagClass:/entreg/i.test(r.estado)?'tag-accent':'tag-neutral'}));
 
-  const periodLabels={day:'Día',week:'Semana',month:'Mes',year:'Año'};
-  const periods=['day','week','month','year'];
+  // ── Period labels ──
+  const periodLabels={day:'Día',week:'Semana',month:'Mes',year:'Año',custom:'Rango'};
+  const periods=['day','week','month','year','custom'];
   let periodLabel='';
   if(period==='day')periodLabel=start.toLocaleDateString('es-CO',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});
   else if(period==='week')periodLabel=`Semana del ${start.toLocaleDateString('es-CO',{day:'2-digit',month:'short'})} al ${addDays(end,-1).toLocaleDateString('es-CO',{day:'2-digit',month:'short'})}`;
   else if(period==='month')periodLabel=start.toLocaleDateString('es-CO',{month:'long',year:'numeric'});
-  else periodLabel=String(anchor.getFullYear());
+  else if(period==='year')periodLabel=String(anchor.getFullYear());
+  else{const f=customFrom?new Date(customFrom+'T00:00:00').toLocaleDateString('es-CO',{day:'2-digit',month:'short',year:'numeric'}):'—';
+    const t=customTo?new Date(customTo+'T00:00:00').toLocaleDateString('es-CO',{day:'2-digit',month:'short',year:'numeric'}):'—';
+    periodLabel=`${f} → ${t}`;}
 
   const pctChange=prevTotal>0?((total-prevTotal)/prevTotal)*100:(total>0?100:0);
   const vsPrevColor=pctChange>=0?'var(--color-accent-300)':'var(--color-neutral-300)';
 
-  return{loading,error,showImport,importText,search,
+  return{loading,error,showImport,importText,search,period,customFrom,customTo,
     statusLabel:loading?'Sincronizando…':(error?'Sin conexión — datos locales':'En vivo'),
     statusColor:loading?'var(--color-neutral-400)':(error?'var(--color-neutral-400)':'var(--color-accent-300)'),
     spinStyle:loading?'display:inline-block;animation:spin 1s linear infinite;':'',
-    periods,periodLabels,period,periodLabel,periodTypeLabel:periodLabels[period].toLowerCase(),
+    periods,periodLabels,periodLabel,periodTypeLabel:periodLabels[period].toLowerCase(),
     kpiTotal:fmtMoney(total),kpiOrders:orders,kpiPending:pending,kpiAvg:fmtMoney(avgTicket),
     kpiTopProduct:topProduct.ref,kpiTopProductCount:topProduct.units,
-    kpiRoas:roas!==null?roas.toFixed(2)+'x':'—',roasColor:roas!==null&&roas>=3?'var(--color-accent-300)':'var(--color-text)',
+    kpiRoas:roas!==null?roas.toFixed(2)+'x':'—',
+    roasColor:roas!==null&&roas>=3?'var(--color-accent-300)':'var(--color-text)',
     kpiAdsSpendLabel:adsSpend>0?fmtMoney(adsSpend):'sin registrar',
     projectionValue:fmtMoney(projected),
     vsPrevPct:(pctChange>=0?'+':'')+pctChange.toFixed(1)+'%',vsPrevColor,
     vsPrevLabel:(pctChange>=0?'↑ ':'↓ ')+Math.abs(pctChange).toFixed(1)+'% vs. anterior',
     kpiPrevTotal:fmtMoney(prevTotal),
-    adsInputValue:adsDraft,adsMonthLabel:`Mes: ${anchor.toLocaleDateString('es-CO',{month:'long',year:'numeric'})} · actual: ${adsByMonth[monthKey]?fmtMoney(adsByMonth[monthKey]):'sin registrar'}`,
+    adsInputValue:adsDraft,
+    adsMonthLabel:`Mes: ${anchor.toLocaleDateString('es-CO',{month:'long',year:'numeric'})} · actual: ${adsByMonth[monthKey]?fmtMoney(adsByMonth[monthKey]):'sin registrar'}`,
     trendBarsOut,paymentBreakdown:groupBy('metodoPago',5),channelBreakdown:groupBy('canal',6),
     cityBreakdown:groupBy('ciudad',6),advisorBreakdown:groupBy('asesor',6),
-    topProductsArr:topProductsArr.slice(0,8),detailRows,hasMore:filteredDetail.length>visibleCount,
-    detailCount:filteredDetail.length,
+    topProductsArr:topProductsArr.slice(0,8),detailRows,
+    hasMore:filteredDetail.length>visibleCount,detailCount:filteredDetail.length,
     sheetUrl:`https://docs.google.com/spreadsheets/d/${SHEET_ID}/edit`,
     lastUpdatedLabel:lastUpdated?`Actualizado ${new Date(lastUpdated).toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'})}`:'Sin sincronizar aún'
   };
@@ -277,8 +352,8 @@ function barRows(arr){
 
 function render(){
   const v=compute();
-  const root=document.getElementById('root');
-  root.innerHTML=`
+  const isCustom=v.period==='custom';
+  document.getElementById('root').innerHTML=`
 <div style="min-height:100vh;display:flex;flex-direction:column;">
 
   <div class="nav" style="justify-content:space-between;padding:var(--space-4) var(--space-6);flex-wrap:wrap;gap:var(--space-3);">
@@ -296,17 +371,16 @@ function render(){
       </div>
       <button class="btn btn-ghost" id="btn-import" style="font-size:13px;"><i class="ph ph-clipboard-text"></i> Pegar CSV</button>
       <button class="btn btn-secondary" id="btn-refresh" style="font-size:13px;">
-        <i class="ph ph-arrow-clockwise" style="${v.spinStyle}"></i> Actualizar
-      </button>
+        <i class="ph ph-arrow-clockwise" style="${v.spinStyle}"></i> Actualizar</button>
     </div>
   </div>
 
   ${v.showImport?`<div class="card elev-md" style="margin:0 var(--space-6) var(--space-4);padding:var(--space-4);">
-    <div class="card-title" style="margin-bottom:var(--space-2);">Pegar datos actualizados (CSV exportado de tu hoja)</div>
+    <div class="card-title" style="margin-bottom:var(--space-2);">Pegar datos actualizados (CSV de MARKETING_DIARIO)</div>
     <div class="card-body" style="font-size:13px;color:var(--color-neutral-300);margin-bottom:var(--space-2);">
-      En Google Sheets: Archivo → Descargar → Valores separados por comas (.csv) de la pestaña BASE_VENTAS, abre el archivo y pega todo aquí.
+      En Google Sheets: Archivo → Descargar → Valores separados por comas (.csv) de la pestaña MARKETING_DIARIO, abre el archivo y pega todo aquí.
     </div>
-    <textarea class="input" id="import-text" style="width:100%;height:120px;font-family:monospace;font-size:12px;" placeholder="Fecha compra,Cliente,Ciudad,...">${esc(v.importText)}</textarea>
+    <textarea class="input" id="import-text" style="width:100%;height:120px;font-family:monospace;font-size:12px;" placeholder="Fecha,Contactos,Cotizaciones,...">${esc(v.importText)}</textarea>
     <div style="display:flex;gap:var(--space-2);margin-top:var(--space-3);">
       <button class="btn btn-primary" id="btn-apply-import">Usar estos datos</button>
       <button class="btn btn-ghost" id="btn-cancel-import">Cancelar</button>
@@ -316,7 +390,7 @@ function render(){
   ${v.error?`<div class="card elev-sm" style="margin:0 var(--space-6) var(--space-4);padding:var(--space-3) var(--space-4);border:1px solid var(--color-accent-700);">
     <div style="font-size:13px;color:var(--color-neutral-200);">
       <i class="ph ph-warning-circle" style="color:var(--color-accent-300);"></i>
-      No se pudo conectar en vivo con el Sheet. Mostrando la última copia guardada — usa "Pegar CSV" para actualizar manualmente.
+      No se pudo conectar con el Sheet. Mostrando última copia guardada — usa "Pegar CSV" para actualizar manualmente.
     </div>
   </div>`:''}
 
@@ -326,12 +400,22 @@ function render(){
       <div class="seg" style="display:inline-flex;">
         ${v.periods.map(p=>`<div class="seg-opt ${p===v.period?'active':''}" data-period="${p}" style="cursor:pointer;">${v.periodLabels[p]}</div>`).join('')}
       </div>
+      ${isCustom?`
+      <div style="display:flex;align-items:center;gap:var(--space-2);flex-wrap:wrap;">
+        <label style="font-size:12px;color:var(--color-neutral-400);">Desde</label>
+        <input type="date" class="input" id="date-from" value="${esc(v.customFrom)}" style="width:150px;">
+        <label style="font-size:12px;color:var(--color-neutral-400);">Hasta</label>
+        <input type="date" class="input" id="date-to" value="${esc(v.customTo)}" style="width:150px;">
+        ${v.customFrom&&v.customTo?`<span style="font-size:12px;color:var(--color-neutral-400);">${esc(v.periodLabel)}</span>`:''}
+      </div>
+      `:`
       <div style="display:flex;align-items:center;gap:var(--space-2);">
         <button class="btn-icon btn-ghost" id="btn-prev"><i class="ph ph-caret-left"></i></button>
         <div style="font-size:14px;min-width:180px;text-align:center;font-weight:500;">${esc(v.periodLabel)}</div>
         <button class="btn-icon btn-ghost" id="btn-next"><i class="ph ph-caret-right"></i></button>
         <button class="btn btn-ghost" id="btn-today" style="font-size:12px;">Hoy</button>
       </div>
+      `}
     </div>
 
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:var(--space-4);">
@@ -343,11 +427,11 @@ function render(){
     </div>
 
     <div class="card elev-sm" style="display:flex;flex-wrap:wrap;gap:var(--space-6);justify-content:space-between;">
-      <div>
+      ${!isCustom?`<div>
         <div class="card-kicker">Proyección de cierre (${esc(v.periodTypeLabel)})</div>
         <div class="card-title" style="font-size:22px;">${esc(v.projectionValue)}</div>
         <div class="card-meta">Al ritmo actual de venta</div>
-      </div>
+      </div>`:''}
       <div>
         <div class="card-kicker">Vs. periodo anterior</div>
         <div class="card-title" style="font-size:22px;color:${v.vsPrevColor};">${esc(v.vsPrevPct)}</div>
@@ -365,13 +449,13 @@ function render(){
 
     <div style="display:grid;grid-template-columns:2fr 1fr;gap:var(--space-4);">
       <div class="card elev-sm">
-        <div class="card-kicker" style="margin-bottom:var(--space-3);">Tendencia de ventas</div>
-        <div style="display:flex;align-items:flex-end;gap:6px;height:180px;">
-          ${v.trendBarsOut.map(b=>`<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end;">
+        <div class="card-kicker" style="margin-bottom:var(--space-3);">Tendencia de ventas <span style="color:var(--color-neutral-500);font-size:10px;text-transform:none;letter-spacing:0;">— fuente: MARKETING_DIARIO</span></div>
+        <div style="display:flex;align-items:flex-end;gap:${v.trendBarsOut.length>20?'2':'6'}px;height:180px;overflow:hidden;">
+          ${v.trendBarsOut.map(b=>`<div style="flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:4px;height:100%;justify-content:flex-end;">
             <div class="bar-track" style="width:100%;height:140px;display:flex;align-items:flex-end;">
               <div class="bar-fill" style="width:100%;height:${b.pct}%;" title="${esc(b.title)}"></div>
             </div>
-            <div style="font-size:10px;color:var(--color-neutral-400);white-space:nowrap;">${esc(b.label)}</div>
+            ${v.trendBarsOut.length<=20?`<div style="font-size:9px;color:var(--color-neutral-400);white-space:nowrap;overflow:hidden;max-width:100%;text-align:center;">${esc(b.label)}</div>`:''}
           </div>`).join('')}
         </div>
       </div>
@@ -427,10 +511,10 @@ function render(){
   on('btn-apply-import','click',()=>{
     const text=($('import-text')||{}).value||'';
     if(!text.trim())return;
-    const rows=rowsToObjects(parseCsv(text));
-    if(rows.length>0){const now=new Date().toISOString();
-      setState({rows,showImport:false,importText:'',error:false,lastUpdated:now});
-      try{localStorage.setItem(LS_ROWS,JSON.stringify(rows));localStorage.setItem(LS_META,JSON.stringify({lastUpdated:now}));}catch(e){}}
+    const dr=parseDailyRows(parseCsv(text));
+    if(dr.length>0){const now=new Date().toISOString();
+      setState({dailyRows:dr,showImport:false,importText:'',error:false,lastUpdated:now});
+      try{localStorage.setItem(LS_DAILY,JSON.stringify(dr));localStorage.setItem(LS_META,JSON.stringify({lastUpdated:now}));}catch(e){}}
   });
   on('import-text','input',e=>STATE.importText=e.target.value);
   on('btn-prev','click',()=>{const a=new Date(STATE.anchor);const p=STATE.period;
@@ -442,13 +526,13 @@ function render(){
     else if(p==='month')a.setMonth(a.getMonth()+1);else a.setFullYear(a.getFullYear()+1);
     setState({anchor:a});});
   on('btn-today','click',()=>setState({anchor:new Date()}));
+  on('date-from','change',e=>setState({customFrom:e.target.value}));
+  on('date-to','change',e=>setState({customTo:e.target.value}));
   on('btn-save-ads','click',()=>{
     const key=`${STATE.anchor.getFullYear()}-${String(STATE.anchor.getMonth()+1).padStart(2,'0')}`;
-    const val=parseMoney(STATE.adsDraft);
-    const next={...STATE.adsByMonth,[key]:val};
+    const val=parseMoney(STATE.adsDraft);const next={...STATE.adsByMonth,[key]:val};
     setState({adsByMonth:next,adsDraft:''});
-    try{localStorage.setItem(LS_ADS,JSON.stringify(next));}catch(e){}
-  });
+    try{localStorage.setItem(LS_ADS,JSON.stringify(next));}catch(e){}});
   on('ads-input','input',e=>STATE.adsDraft=e.target.value);
   on('search-input','input',e=>setState({search:e.target.value,visibleCount:12}));
   on('btn-more','click',()=>setState(s=>({visibleCount:s.visibleCount+20})));
@@ -457,9 +541,15 @@ function render(){
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 (function init(){
-  try{const cached=localStorage.getItem(LS_ROWS);const meta=localStorage.getItem(LS_META);
-    if(cached)STATE={...STATE,rows:JSON.parse(cached),loading:false,lastUpdated:meta?JSON.parse(meta).lastUpdated:null};
-    const ads=localStorage.getItem(LS_ADS);if(ads)STATE={...STATE,adsByMonth:JSON.parse(ads)};}catch(e){}
+  try{
+    const cached=localStorage.getItem(LS_ROWS);
+    const daily=localStorage.getItem(LS_DAILY);
+    const meta=localStorage.getItem(LS_META);
+    const lastUpdated=meta?JSON.parse(meta).lastUpdated:null;
+    if(cached)STATE={...STATE,rows:JSON.parse(cached),loading:false,lastUpdated};
+    if(daily)STATE={...STATE,dailyRows:JSON.parse(daily),loading:false,lastUpdated};
+    const ads=localStorage.getItem(LS_ADS);if(ads)STATE={...STATE,adsByMonth:JSON.parse(ads)};
+  }catch(e){}
   render();
   fetchLive();
 })();
