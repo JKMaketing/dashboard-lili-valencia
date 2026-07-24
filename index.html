@@ -186,12 +186,18 @@ function compute(){
   const topArr=Object.values(prodMap).sort((a,b)=>b.u-a.u);
   const top=topArr[0]||{ref:'—',u:0};
 
-  // Projection
-  const now=new Date().getTime();
-  let frac=1;
-  if(now>=s&&now<e)frac=(now-s)/(e-s);
-  else if(now<s)frac=0.001;
-  const proj=frac>0.02?total/frac:total;
+  // Proyección fin de mes basada en promedio diario del rango seleccionado
+  const dailyAvg=rangeDays>0?total/rangeDays:0;
+  const toDateObj=new Date(to+'T00:00:00');
+  const daysInMonth=new Date(toDateObj.getFullYear(),toDateObj.getMonth()+1,0).getDate();
+  // Días transcurridos en el mes hasta el "to" del rango
+  const monthStartMs=new Date(toDateObj.getFullYear(),toDateObj.getMonth(),1).getTime();
+  const toMs=addD(toDateObj,1).getTime();
+  const daysElapsedInMonth=Math.round((toMs-monthStartMs)/86400000);
+  const daysRemaining=Math.max(0,daysInMonth-daysElapsedInMonth);
+  // Ventas acumuladas en el mes (desde inicio del mes hasta fin del rango)
+  const monthAccum=daily.filter(r=>inR(r.fecha,monthStartMs,toMs)).reduce((a,r)=>a+r.val,0);
+  const proj=monthAccum+dailyAvg*daysRemaining;
 
   // Ads spend (keyed to month of "from" date)
   const mKey=from.slice(0,7);
@@ -258,7 +264,7 @@ function compute(){
     top:top.ref,topU:top.u,
     roas:roas?roas.toFixed(2)+'x':'—',roasC:roas&&roas>=3?'var(--accent3)':'var(--text)',
     adsLabel:ads?fm(ads):'sin registrar',
-    proj:fm(proj),
+    proj:fm(proj),projAvg:fm(dailyAvg),projDaysLeft:daysRemaining,projMonth:daysInMonth,
     vsPct:(pct>=0?'+':'')+pct.toFixed(1)+'%',pctColor,
     vsLabel:(pct>=0?'↑ ':'↓ ')+Math.abs(pct).toFixed(1)+'% vs. periodo anterior',
     prevLabel:fm(prevTotal),
@@ -353,9 +359,9 @@ function render(){
     <!-- ── Comparación y proyección ── -->
     <div class="card esm" style="display:flex;flex-wrap:wrap;gap:var(--s6);justify-content:space-between;">
       <div>
-        <div class="kicker">Proyección cierre del rango</div>
+        <div class="kicker">Proyección cierre de mes</div>
         <div class="ktitle" style="font-size:22px;">${esc(v.proj)}</div>
-        <div class="kmeta">Al ritmo actual (${v.rangeDays} días)</div>
+        <div class="kmeta">Prom. diario ${esc(v.projAvg)} · ${v.projDaysLeft} días restantes en el mes</div>
       </div>
       <div>
         <div class="kicker">Vs. mismo periodo anterior</div>
